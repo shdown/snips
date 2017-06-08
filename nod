@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+NOD_DIR=/tmp/nod-${USER?}
+PROGNAME=${0##*/}
+
+if [[ -v NOD__WORKER ]]; then
+	if (( $# != 6 )); then
+		echo >&2 "USAGE: NOD__WORKER=<...> $PROGNAME <file> <appname> <icon> <summary> <body> <timeout>"
+		exit 2
+	fi
+	file=$1
+	unset id
+	read id < "$file"
+	out=$(gdbus call \
+		--session \
+		--dest org.freedesktop.Notifications \
+		--object-path /org/freedesktop/Notifications \
+		--method org.freedesktop.Notifications.Notify \
+		-- \
+		"$2" \
+		"$((id))" \
+		"$3" \
+		"$4" \
+		"$5" \
+		'[]' \
+		'{}' \
+		"$6" \
+		) || exit $?
+	if [[ $out =~ ^\(uint32\ ([0-9]+),\)$ ]]; then
+		echo "${BASH_REMATCH[1]}" > "$file"
+		exit $?
+	else
+		echo >&2 "E: unexpected gdbus output: $out"
+		exit 1
+	fi
+fi
+
+if [[ ! -d $NOD_DIR ]]; then
+	mkdir -p -- "$NOD_DIR" || exit $?
+fi
+
+usage() {
+	echo >&2 "USAGE: $PROGNAME [-t <timeout>] [-i <icon>] [--] <appname> <summary> <body>"
+	exit 2
+}
+
+# TAKES:
+#     $1 — appname string
+# RETURNS:
+#     0 if $1 is a valid appname, non-zero otherwise
+valid_appname() {
+	[[ $1 =~ ^[0-9a-zA-Z_][-0-9a-zA-Z_]*$ ]]
+}
+
+timeout=-1
+icon=
+while getopts 't:i:' option; do
+	case "$option" in
+		t) timeout=$OPTARG ;;
+		i) icon=$OPTARG ;;
+		*) usage ;;
+	esac
+done
+shift $(( OPTIND - 1 ))
+if (( $# != 3 )); then
+	usage
+fi
+if ! valid_appname "$1"; then
+	echo >&2 "E: invalid appname."
+	exit 1
+fi
+file=$NOD_DIR/$1
+NOD__WORKER=1 exec flock "$file" "$0" "$file" "$1" "$icon" "$2" "$3" "$timeout"

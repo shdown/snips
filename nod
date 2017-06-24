@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# nod — notification daemon
+
 NOD_DIR=/tmp/nod-${USER?}
 PROGNAME=${0##*/}
 

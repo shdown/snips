@@ -85,15 +85,11 @@ static Datum * datum_create(int fd)
     return d;
 }
 
-static void datum_destroy(Datum *d)
-{
-    close(d->fd);
-    sal_free(d);
-}
+#define datum_destroy sal_free
 
 #define datum_fd(Dtm_) (Dtm_)->fd
 
-static inline bool echo(Datum *d)
+static inline bool datum_echo(Datum *d)
 {
     int fd = d->fd;
     char *buf = d->u.buf;
@@ -171,10 +167,15 @@ void srv_epoll_run(int sfd)
         for (int i = 0; i < nfds; ++i) {
             Datum *datum = epevbuf[i].data.ptr;
             if (datum) {
-                if (!echo(datum)) {
-                    if (epoll_ctl(efd, EPOLL_CTL_DEL, datum_fd(datum), NULL) < 0) {
+                if (!datum_echo(datum)) {
+                    int fd = datum_fd(datum);
+                    if (epoll_ctl(efd, EPOLL_CTL_DEL, fd, NULL) < 0) {
                         perror("epoll_ctl (EPOLL_CTL_DEL on client fd)");
                         return;
+                    }
+                    if (close(fd) < 0) {
+                        perror("close");
+                        // note: no return
                     }
                     datum_destroy(datum);
                 }

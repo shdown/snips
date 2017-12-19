@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+: ${FFMPEG:=ffmpeg}
+: ${FFPROBE:=ffprobe}
+
+left=0
+right=0
+top=0
+bottom=0
+width=-1
+height=-1
+
+usage() {
+    echo >&2 "USAGE: ${0##*/} [-l LEFT] [-t TOP] [-r RIGHT | -w WIDTH] [-b BOTTOM | -h HEIGHT] INPUT OUTPUT"
+    exit 2
+}
+
+while getopts 'l:r:t:b:w:h:' option; do
+    case "$option" in
+    l) left=$OPTARG ;;
+    r) right=$OPTARG ;;
+    t) top=$OPTARG ;;
+    b) bottom=$OPTARG ;;
+    w) width=$OPTARG ;;
+    h) height=$OPTARG ;;
+    *) usage ;;
+    esac
+done
+shift "$(( OPTIND - 1 ))" || usage
+(( $# != 2 )) && usage
+input=$1
+output=$2
+
+orig_width=
+orig_height=
+eval "$($FFPROBE -show_streams -of ini "$input" | sed -rn 's/^(width|height)=[0-9]+$/orig_\0/p')"
+if [[ -z $orig_width || -z $orig_height ]]; then
+    echo "Can't find width/height in ffprobe's output."
+    exit 1
+fi
+res_width=$(( width < 0 ? orig_width-left-right : width ))
+res_height=$(( height < 0 ? orig_height-top-bottom : height ))
+$FFMPEG -i "$input" -vf "crop=$res_width:$res_height:$left:$top" "$output"

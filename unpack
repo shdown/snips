@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+shopt -s extglob nocasematch
+
+usage() {
+    echo >&2 "USAGE: ${0##*/} <archive file>"
+    exit 2
+}
+
+(( $# == 1 )) || usage
+
+file=$1
+if [[ $file == -* ]]; then
+    echo >&2 "W: correcting '$file' to './$file'"
+    file=./$file
+fi
+
+case "$file" in
+    *.tar) ;&
+    *.tar.+([a-z]))
+        tar xf "$file" ;;
+    *.bz2)
+        bunzip2 "$file" ;;
+    *.gz)
+        gunzip "$file" ;;
+    *.xz)
+        unxz "$file" ;;
+    *.lzma)
+        unlzma "$file" ;;
+    *.ace)
+        unace e "$file" ;;
+    *.rar)
+        unrar x "$file" ;;
+    *.deb)
+        ar -x "$file" ;;
+    *.lzh)
+        lha x "$file" ;;
+    *.zip) ;&
+    *.[wj]ar)
+        unzip "$file" ;;
+    *.Z)
+        uncompress "$file" ;;
+    *.7z)
+        7zr x "$file" ;;
+    *.rpm)
+        rpm2cpio "$file" | cpio -idmv ;;
+    *)
+        echo >&2 "E: unknown archive type."
+        exit 1 ;;
+esac

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+IFS=' '
+for bold in 0 1; do
+    for line in '0 1 2 3' '4 5 6 7'; do
+        for fgcolor in $line; do
+            for bgcolor in 0 1 2 3 4 5 6 7; do
+                attr="$bold;3$fgcolor;4$bgcolor"
+                echo -en "\e[${attr}m $attr \e[0m "
+            done
+            echo
+        done
+    done
+    echo
+done

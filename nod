@@ -1,75 +1,57 @@
 #!/usr/bin/env bash
 
-# nod — notification daemon
-
 NOD_DIR=/tmp/nod-${USER?}
-PROGNAME=${0##*/}
-
-if [[ -v NOD__WORKER ]]; then
-	if (( $# != 6 )); then
-		echo >&2 "USAGE: NOD__WORKER=<...> $PROGNAME <file> <appname> <icon> <summary> <body> <timeout>"
-		exit 2
-	fi
-	file=$1
-	unset id
-	read id < "$file"
-	out=$(gdbus call \
-		--session \
-		--dest org.freedesktop.Notifications \
-		--object-path /org/freedesktop/Notifications \
-		--method org.freedesktop.Notifications.Notify \
-		-- \
-		"$2" \
-		"$((id))" \
-		"$3" \
-		"$4" \
-		"$5" \
-		'[]' \
-		'{}' \
-		"$6" \
-		) || exit $?
-	if [[ $out =~ ^\(uint32\ ([0-9]+),\)$ ]]; then
-		echo "${BASH_REMATCH[1]}" > "$file"
-		exit $?
-	else
-		echo >&2 "E: unexpected gdbus output: $out"
-		exit 1
-	fi
-fi
 
 if [[ ! -d $NOD_DIR ]]; then
-	mkdir -p -- "$NOD_DIR" || exit $?
+    mkdir -p -- "$NOD_DIR" || exit $?
 fi
 
 usage() {
-	echo >&2 "USAGE: $PROGNAME [-t <timeout>] [-i <icon>] [--] <appname> <summary> <body>"
-	exit 2
+    echo >&2 "USAGE: $0 [-n] [-t <timeout>] [-i <icon>] [-u <urgency>] [--] <appname> <summary> <body>"
+    exit 2
 }
 
 # TAKES:
 #     $1 — appname string
 # RETURNS:
 #     0 if $1 is a valid appname, non-zero otherwise
-valid_appname() {
-	[[ $1 =~ ^[0-9a-zA-Z_][-0-9a-zA-Z_]*$ ]]
+is_valid_appname() {
+    [[ $1 =~ ^[0-9a-zA-Z_][-0-9a-zA-Z_]*$ ]]
 }
 
 timeout=-1
 icon=
-while getopts 't:i:' option; do
-	case "$option" in
-		t) timeout=$OPTARG ;;
-		i) icon=$OPTARG ;;
-		*) usage ;;
-	esac
+urgency=
+reuse=1
+while getopts 'nt:i:u:' option; do
+    case "$option" in
+        n) reuse=0 ;;
+        t) timeout=$OPTARG ;;
+        i) icon=$OPTARG ;;
+        u)
+            if [[ $OPTARG != [012] ]]; then
+                echo >&2 "E: Ivalid urgency."
+                usage
+            fi
+            urgency=$OPTARG
+            ;;
+        *) usage ;;
+    esac
 done
 shift $(( OPTIND - 1 ))
 if (( $# != 3 )); then
-	usage
+    usage
 fi
-if ! valid_appname "$1"; then
-	echo >&2 "E: invalid appname."
-	exit 1
+if ! is_valid_appname "$1"; then
+    echo >&2 "E: invalid appname."
+    usage
 fi
 file=$NOD_DIR/$1
-NOD__WORKER=1 exec flock "$file" "$0" "$file" "$1" "$icon" "$2" "$3" "$timeout"
+exec flock --no-fork "$file" "$BASH" -c '
+unset id
+(( $0 )) && read id < "$1"
+d=org.freedesktop.Notifications
+out=$(gdbus call --session --dest "$d" --object-path /"${d//.//}" --method "$d".Notify -- \
+	"$2" "$((id))" "$3" "$4" "$5" "[]" "{${7:+"\"urgency\":<byte $7>"}}" "$6") || exit $?
+[[ $out =~ ^\(uint32\ ([0-9]+),\)$ ]] || { echo >&2 "E: unexpected gdbus output: $out"; exit 1; }
+echo "${BASH_REMATCH[1]}" > "$1"' "$reuse" "$file" "$1" "$icon" "$2" "$3" "$timeout" "$urgency"

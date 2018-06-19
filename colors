@@ -1,15 +1,46 @@
 #!/usr/bin/env bash
 
-IFS=' '
-for bold in 0 1; do
-    for line in '0 1 2 3' '4 5 6 7'; do
-        for fgcolor in $line; do
-            for bgcolor in 0 1 2 3 4 5 6 7; do
-                attr="$bold;3$fgcolor;4$bgcolor"
-                echo -en "\e[${attr}m $attr \e[0m "
+colors_16() {
+    local IFS=' '
+    local bold line fgcolor bgcolor attr
+    for bold in 0 1; do
+        for line in '0 1 2 3' '4 5 6 7'; do
+            for fgcolor in $line; do
+                for bgcolor in 0 1 2 3 4 5 6 7; do
+                    attr="$bold;3$fgcolor;4$bgcolor"
+                    echo -en "\e[${attr}m $attr \e[0m "
+                done
+                echo
             done
-            echo
         done
+        echo
     done
-    echo
-done
+}
+
+colors_256() {
+    local attr i
+    if [[ $1 == f ]]; then
+        attr=38
+    elif [[ $1 == b ]]; then
+        attr=48
+    else
+        return 2
+    fi
+    for (( i = 0; i <= 255; ++i )); do
+        printf "\x1b[$attr;5;%sm%3d\e[0m " "$i" "$i"
+        if (( i >= 15 && (i-15) % 6 == 0 )); then
+            printf "\n"
+        fi
+    done
+}
+
+usage() {
+    echo >&2 "USAGE: ${0##*/} {16 | 256 {f | b}}"
+    exit 2
+}
+
+case "$1" in
+    16) colors_16 ;;
+    256) colors_256 "$2" || usage ;;
+    *) usage ;;
+esac

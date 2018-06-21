@@ -69,7 +69,9 @@ storage_open(const char *appname)
         char *dirname_last = filename + nprefix + nlogin;
         assert(*dirname_last == '/');
         *dirname_last = '\0';
-        if (mkdir(filename, 0700) < 0) {
+        // We ignore EEXIST error because it is likely has been created by another copy of this
+        // program running in parallel.
+        if (mkdir(filename, 0700) < 0 && errno != EEXIST) {
             fprintf(stderr, "mkdir: %s: %s\n", filename, strerror(errno));
             goto done;
         }

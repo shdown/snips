@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
 
-NOD_DIR=/tmp/nod-${USER?}
+# motify: notify-send with memory.
+#
+# Much like `notify-send`, but requires application name to be passed and, unless the `-n` option is
+# used, re-uses the last notification (if any) sent from the application name specified.
+#
+# Requires `flock` and `gdbus`.
 
-if [[ ! -d $NOD_DIR ]]; then
-    mkdir -p -- "$NOD_DIR" || exit $?
+WD=/tmp/motify_${USER?}
+
+if [[ ! -e $WD ]]; then
+    # `mkdir` may fail with `EEXIST` because of other instances of this script running in parallel…
+    # but `mkdir -p` ignores `EEXIST`! So we use `|| exit $?` and not `|| true`.
+    mkdir -m700 -p "$WD" || exit $?
 fi
 
 usage() {
     echo >&2 "USAGE: $0 [-n] [-t <timeout>] [-i <icon>] [-u <urgency>] [--] <appname> <summary> <body>"
     exit 2
-}
-
-# TAKES:
-#     $1 — appname string
-# RETURNS:
-#     0 if $1 is a valid appname, non-zero otherwise
-is_valid_appname() {
-    [[ $1 =~ ^[0-9a-zA-Z_][-0-9a-zA-Z_]*$ ]]
 }
 
 timeout=-1
@@ -39,14 +40,14 @@ while getopts 'nt:i:u:' option; do
     esac
 done
 shift $(( OPTIND - 1 ))
-if (( $# != 3 )); then
-    usage
-fi
-if ! is_valid_appname "$1"; then
+(( $# == 3 )) || usage
+if ! [[ $1 =~ ^[0-9a-zA-Z_][-0-9a-zA-Z_]*$ ]]; then
     echo >&2 "E: invalid appname."
     usage
 fi
-file=$NOD_DIR/$1
+file=$WD/$1
+# One thing worth commenting is `$((id))` construct. `$((...))` is arithmetic context, and `$((id))`
+# substitutes 0 if `$id` does not look like a number.
 exec flock --no-fork "$file" "$BASH" -c '
 unset id
 (( $0 )) && read id < "$1"

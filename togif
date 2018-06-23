@@ -1,4 +1,4 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 set -e
 
 width=-1
@@ -6,10 +6,9 @@ height=-1
 fps=-1
 stats_mode_diff=0
 
-progname=${0:t}
 usage() {
     cat <<EOF
-USAGE: $progname [-w WIDTH] [-h HEIGHT] [-f FPS] [-d]
+USAGE: ${0##*/} [-w WIDTH] [-h HEIGHT] [-f FPS] [-d]
 
 -d: pass 'stats_mode=diff' to 'palettegen' filter
 EOF
@@ -17,7 +16,7 @@ EOF
 }
 
 while getopts 'w:h:f:d' option; do
-    case $option in
+    case "$option" in
     w) width=$OPTARG ;;
     h) height=$OPTARG ;;
     f) fps=$OPTARG ;;
@@ -31,10 +30,10 @@ input=$1
 output=$2
 
 params=
-if (( width >= 0 || height >= 0 )); then
+if [[ $width != -1 || $height != -1 ]]; then
     params+="scale=${width}:${height}:flags=lanczos,"
 fi
-if (( fps >= 0 )); then
+if [[ $fps != -1 ]]; then
     params+="fps=${fps},"
 fi
 
@@ -44,6 +43,6 @@ if (( stats_mode_diff )); then
     palettegen_args="stats_mode=diff"
 fi
 
-ffmpeg -y -i $input -vf ${params}palettegen${palettegen_args:+"=$palettegen_args"} $palette
-ffmpeg -y -i $input -i $palette -filter_complex \
-    "${params%,}[x];[x][1:v]paletteuse=dither=none" $output
+ffmpeg -y -i "$input" -vf "${params}palettegen${palettegen_args:+"=$palettegen_args"}" "$palette"
+ffmpeg -y -i "$input" -i "$palette" -filter_complex \
+    "${params%,}[x];[x][1:v]paletteuse=dither=none" "$output"

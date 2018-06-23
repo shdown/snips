@@ -4,7 +4,7 @@ SOURCES := $(wildcard *.c)
 OBJECTS := $(patsubst %.c,%.o,$(SOURCES))
 CFLAGS := -Wall -Wextra -std=c99 -O2 $(shell pkg-config --cflags $(PKGCONFIG_LIBS))
 CPPFLAGS := -D_POSIX_C_SOURCE=200809L -DPROGRAM_NAME=\"$(PROGRAM)\"
-LDFLAGS := $(shell pkg-config --libs $(PKGCONFIG_LIBS))
+LDLIBS := $(shell pkg-config --libs $(PKGCONFIG_LIBS))
 
 $(PROGRAM): $(OBJECTS)
 

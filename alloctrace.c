@@ -12,7 +12,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdint.h>
-#include <assert.h>
 
 static void * (*malloc0)(size_t n);
 static void * (*realloc0)(void *p, size_t n);

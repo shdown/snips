@@ -1,0 +1,24 @@
+#!/bin/sh
+
+if [ $# -ne 1 ]; then
+    echo >&2 "USAGE: $0 <.bf file>"
+    exit 2
+fi
+
+set -e
+
+SFILE=/tmp/bfprog.s
+OFILE=/tmp/bfprog.o
+EFILE=/tmp/bfprog
+
+echo >&2 "[*] Transpiling to x86-64 assembly..."
+./gen.py < "$1" > "$SFILE"
+
+echo >&2 "[*] Compiling..."
+as "$SFILE" -o "$OFILE"
+
+echo >&2 "[*] Linking..."
+ld -s "$OFILE" -o "$EFILE"
+
+echo >&2 "[*] Done! Running the target binary."
+exec "$EFILE"

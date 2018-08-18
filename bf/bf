@@ -12,7 +12,7 @@ OFILE=/tmp/bfprog.o
 EFILE=/tmp/bfprog
 
 echo >&2 "[*] Transpiling to x86-64 assembly..."
-./gen.py < "$1" > "$SFILE"
+"$(dirname -- "$0")"/gen.py < "$1" > "$SFILE"
 
 echo >&2 "[*] Compiling..."
 as "$SFILE" -o "$OFILE"

@@ -89,6 +89,17 @@ push4(unsigned x)
 
 static inline
 void
+push8(unsigned long x)
+{
+    if (capacity - size < 8) {
+        grow();
+    }
+    memcpy(ptr + size, &x, 8);
+    size += 8;
+}
+
+static inline
+void
 fixup4(size_t pos)
 {
     memcpy(ptr + pos - 4, (unsigned [1]) {size - pos}, 4);
@@ -103,6 +114,9 @@ enum {
 enum {
     R8, R9, R10, R11, R12, R13, R14, R15
 };
+
+#define i_movq_r_im8(Reg_, X_) \
+    push(0x48); push(0xB8 + (Reg_)); push8(X_)
 
 #define i_movq_r_im(Reg_, X_) \
     push(0x48); push(0xC7); push(0xC0 + (Reg_)); push4(X_)
@@ -176,6 +190,9 @@ usage(void)
 
 int main(int argc, char **argv)
 {
+    const char *err_msg = "mmap failed!\n";
+    const size_t nerr_msg = strlen(err_msg);
+
     bool dump = false;
     unsigned nmem = 1 << 30;
     for (int c; (c = getopt(argc, argv, "dm:"))  != -1;) {
@@ -204,8 +221,6 @@ int main(int argc, char **argv)
         perror("mmap");
         abort();
     }
-
-    i_pushq_r(RBX);
 
     i_movq_r_im(RAX, 9);                                            // mmap(
     i_movq_r_im(RDI, 0);                                            //  addr,
@@ -256,8 +271,16 @@ int main(int argc, char **argv)
     i_syscall();          // )
 
     fixup4(fixup_error);
-    i_popq_r(RBX);
-    i_ret();
+
+    i_movq_r_im(RAX, 1);                        // write(
+    i_movq_r_im(RDI, 2);                        //  fd,
+    i_movq_r_im8(RSI, (unsigned long) err_msg); //  buffer,
+    i_movq_r_im(RDX, nerr_msg);                 //  count
+    i_syscall();                                // )
+
+    i_movq_r_im(RAX, 60); // exit(
+    i_movq_r_im(RDI, 1);  //  status
+    i_syscall();          // )
 
     for (size_t i = 0; i < fixup_write.size; ++i) {
         fixup4(fixup_write.data[i]);
@@ -307,8 +330,5 @@ int main(int argc, char **argv)
         void (*func)(void);
         *(void **) &func = ptr;
         func();
-
-        fputs("mmap failed!\n", stderr);
-        return 1;
     }
 }

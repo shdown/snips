@@ -54,7 +54,7 @@ oom:
 //------------------------------------------------------------------------------
 
 static size_t size;
-static size_t capacity = 4;
+static size_t capacity = 32;
 static unsigned char *ptr;
 
 static

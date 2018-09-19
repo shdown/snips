@@ -1,4 +1,5 @@
 #include <stdio.h>
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
@@ -39,33 +40,12 @@ traverse(State *s, StateList *result, StateList *p_aux)
     }
 }
 
-static
-void
-free_reachable_but_final(State *s)
-{
-    StateList result = LS_VECTOR_NEW();
-    StateList aux = LS_VECTOR_NEW();
-    traverse(s, &result, &aux);
-    for (size_t i = 0; i < result.size; ++i) {
-        free(result.data[i]);
-    }
-    LS_VECTOR_FREE(result);
-    LS_VECTOR_FREE(aux);
-}
+// Define to
+//     ls_xmemdup((State [1]) {0}, sizeof(State))
+// if your /NULL/ is not all zero bits.
+#define zalloc_state() LS_XNEW0(State, 1)
 
-static inline
-State *
-zalloc_state(void)
-{
-    return LS_XNEW0(State, 1);
-}
-
-static inline
-void
-add_eps_jump(State *from, State *to)
-{
-    LS_VECTOR_PUSH(from->eps_jumps, to);
-}
+#define add_eps_jump(From_, To_) LS_VECTOR_PUSH((From_)->eps_jumps, To_)
 
 typedef struct {
     State *start;
@@ -75,8 +55,17 @@ typedef struct {
 void
 automata_free(Automata a)
 {
-    free_reachable_but_final(a.start);
+    StateList result = LS_VECTOR_NEW();
+    StateList aux = LS_VECTOR_NEW();
+    traverse(a.start, &result, &aux);
+    for (size_t i = 0; i < result.size; ++i) {
+        if (result.data[i] != a.final) {
+            free(result.data[i]);
+        }
+    }
     free(a.final);
+    LS_VECTOR_FREE(result);
+    LS_VECTOR_FREE(aux);
 }
 
 #define has_error(A_) (!(A_).start)
@@ -108,44 +97,69 @@ letter(unsigned char c)
     return (Automata) {start, final};
 }
 
+static inline
+Automata
+any(void)
+{
+    State *start = zalloc_state();
+    State *final = zalloc_state();
+    for (size_t i = 0; i < 256; ++i) {
+        start->jump[i] = final;
+    }
+    return (Automata) {start, final};
+}
+
+static
+const char *
+pb_find(const char *buf, const char *end, char c)
+{
+    int balance = 0;
+    for (; buf != end; ++buf) {
+        switch (*buf) {
+            case '(': ++balance; break;
+            case ')': if (--balance < 0) { return NULL; } break;
+        }
+        if (balance == 0 && *buf == c) {
+            return buf;
+        }
+    }
+    return NULL;
+}
+
 Automata
 parse_re(const char *buf, const char *end)
 {
-
     if (buf == end) {
         return empty();
+    }
+
+    const char *bar = pb_find(buf, end, '|');
+    if (bar) {
+        Automata left = parse_re(buf, bar);
+        Automata right = parse_re(bar + 1, end);
+        if (has_error(left) || has_error(right)) { return error(); }
+
+        add_eps_jump(left.start, right.start);
+        add_eps_jump(right.final, left.final);
+        return (Automata) {left.start, left.final};
     }
 
     Automata left;
     const char *left_end;
 
     if (buf[0] == '(') {
-        int balance = 1;
-        const char *p = buf + 1;
-
-        while (1) {
-            switch (*p) {
-            case '\\':  if (++p == end) { return error(); } break;
-            case '(':   ++balance; break;
-            case ')':   --balance; break;
-            }
-            if (balance == 0) { break; }
-            if (++p == end) { return error(); }
-        }
-
+        const char *p = pb_find(buf, end, ')');
+        if (!p) { return error(); }
         left = parse_re(buf + 1, p);
-        left_end = p + 1;
         if (has_error(left)) { return error(); }
+        left_end = p + 1;
 
-    } else if (buf[0] == ')') {
+    } else if (buf[0] == ')' || buf[0] == '*' || buf[0] == '+') {
         return error();
 
-    } else if (buf[0] == '|') {
-        left = empty();
-        left_end = buf;
-
-    } else if (buf[0] == '*' || buf[0] == '+') {
-        return error();
+    } else if (buf[0] == '.') {
+        left = any();
+        left_end = buf + 1;
 
     } else {
         const char *p;
@@ -179,22 +193,6 @@ parse_re(const char *buf, const char *end)
 
     if (left_end == end) {
         return left;
-
-    } else if (*left_end == '|') {
-        Automata right = parse_re(left_end + 1, end);
-        if (has_error(right)) { return error(); }
-
-        State *start = zalloc_state();
-        State *final = zalloc_state();
-
-        add_eps_jump(start, left.start);
-        add_eps_jump(start, right.start);
-
-        add_eps_jump(left.final, final);
-        add_eps_jump(right.final, final);
-
-        return (Automata) {start, final};
-
     } else {
         Automata right = parse_re(left_end, end);
         if (has_error(right)) { return error(); }
@@ -262,14 +260,18 @@ done:
     return ans;
 }
 
+//-----------------------------------------------------------------------------
+
 int
 main()
 {
-    char re[1024], str[1024];
-    if (!fgets(re, sizeof(re), stdin)) {
+    char re[1024];
+    if (scanf("%1023s", re) != 1) {
         return 1;
     }
-    if (!fgets(str, sizeof(str), stdin)) {
+
+    char str[1024];
+    if (scanf("%1023s", str) != 1) {
         return 1;
     }
 
@@ -278,6 +280,7 @@ main()
         fputs("Invalid regex.\n", stderr);
         return 1;
     }
+
     const bool m = match(a, str, str + strlen(str));
     puts(m ? "YES" : "NO");
 

@@ -76,18 +76,17 @@ nfa2dfa(NFA nfa, const char *alphabet, const char *alphabet_end)
     LS_VECTOR_OF(size_t) queue = LS_VECTOR_NEW();
     LS_VECTOR_PUSH(queue, start_set);
 
-    Zu_Map map;
-    zu_map_init(&map);
-    zu_map_set(&map, start_set, 0);
+    Zu_Map *map = zu_map_new();
+    zu_map_set(map, start_set, 0);
 
     do {
         const size_t set = queue.data[--queue.size];
-        const size_t i = zu_map_get(&map, set);
+        const size_t i = zu_map_get(map, set);
         result.states.data[i].terminal = !!(set & terminal_mask);
         for (const char *s = alphabet; s != alphabet_end; ++s) {
             const unsigned char c = *s;
             const size_t dest = eps_closure_mask(move(set, c));
-            const size_t j = zu_map_get_or_set(&map, dest, result.states.size);
+            const size_t j = zu_map_get_or_set(map, dest, result.states.size);
             if (j == result.states.size) {
                 LS_VECTOR_ENSURE(result.states, result.states.size + 1);
                 ++result.states.size;
@@ -97,7 +96,7 @@ nfa2dfa(NFA nfa, const char *alphabet, const char *alphabet_end)
         }
     } while (queue.size);
 
-    zu_map_free(&map);
+    zu_map_free(map);
     LS_VECTOR_FREE(queue);
     return result;
 }

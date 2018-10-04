@@ -3,13 +3,10 @@
 
 #include <stdlib.h>
 
-typedef struct {
-    size_t *ptr;
-    size_t length;
-} Zu_Map;
+typedef struct Zu_Map Zu_Map;
 
-void
-zu_map_init(Zu_Map *m);
+Zu_Map *
+zu_map_new(void);
 
 size_t
 zu_map_get(Zu_Map *m, size_t key);

@@ -3,14 +3,18 @@
 #include "re2nfa.h"
 #include "nfa2dfa.h"
 #include "dfa_complement.h"
-#include "x.h"
+#include "dfa2re.h"
 
 int
 main()
 {
+    fprintf(stderr, "Regex: ");
     char re[1024];
     if (scanf("%1023s", re) != 1) return 1;
-    const char *alphabet = "ab";
+
+    fprintf(stderr, "Alphabet: ");
+    char alphabet[1024];
+    if (scanf("%1023s", alphabet) != 1) return 1;
 
     NFA nfa = re2nfa(re, re + strlen(re));
     if (nfa_has_error(nfa)) {
@@ -52,8 +56,17 @@ main()
         printf("\n");
     }
 
-    //dfa_complement(&dfa);
+    char reply[2];
+    do {
+        fprintf(stderr, "Complement? [y/n] ");
+    } while (scanf("%1s", reply) != 1 || !(reply[0] == 'y' || reply[0] == 'n'));
 
+    if (reply[0] == 'y') {
+        dfa_complement(&dfa);
+        puts("Complemented the DFA.");
+    }
+
+    puts("Built regex:");
     LSString s = dfa2re(dfa, alphabet, alphabet + strlen(alphabet));
     printf("%.*s\n", (int) s.size, s.data);
     LS_VECTOR_FREE(s);

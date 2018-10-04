@@ -4,49 +4,86 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "libls/alloc_utils.h"
+#include "libls/panic.h"
 
-void
-zu_map_init(Zu_Map *m)
+typedef struct {
+    size_t key;
+    size_t value;
+} Entry;
+
+struct Zu_Map {
+    size_t ndata;
+    Entry data[];
+};
+
+Zu_Map *
+zu_map_new(void)
 {
-    m->length = 1ULL << 40;
-    while ((m->ptr = mmap(NULL, m->length, PROT_READ | PROT_WRITE,
-                          MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0))
-            == MAP_FAILED)
-    {
-        if (errno != EINVAL && errno != ENOMEM) {
-            perror("mmap");
-            abort();
-        }
-        m->length /= 2;
-    }
-    fprintf(stderr, "I: allocated Zu_Map of length %zu.\n", m->length);
+    const size_t ndata = 2000003; // is a prime
+    Zu_Map *m = ls_xcalloc(sizeof(Zu_Map) + ndata * sizeof(size_t), 1);
+    m->ndata = ndata;
+    return m;
 }
 
 size_t
 zu_map_get(Zu_Map *m, size_t key)
 {
-    return m->ptr[key] - 1;
+    const size_t n = m->ndata;
+    const size_t base = key % n;
+
+    for (size_t offset = 0; offset != n; ++offset) {
+        Entry e = m->data[(base + offset) % n];
+        if (!e.value) {
+            break;
+        }
+        if (e.key == key) {
+            return e.value - 1;
+        }
+    }
+
+    return -1;
 }
 
 void
 zu_map_set(Zu_Map *m, size_t key, size_t value)
 {
-    m->ptr[key] = value + 1;
+    const size_t n = m->ndata;
+    const size_t base = key % n;
+
+    for (size_t offset = 0; offset != n; ++offset) {
+        Entry *e = &m->data[(base + offset) % n];
+        if (!e->value) {
+            *e = (Entry) {.key = key, .value = value + 1};
+            return;
+        }
+    }
+
+    LS_PANIC("no space left in zu_map");
 }
 
 size_t
 zu_map_get_or_set(Zu_Map *m, size_t key, size_t value)
 {
-    const size_t old_value = m->ptr[key];
-    if (!old_value) {
-        m->ptr[key] = value + 1;
-        return value;
+    const size_t n = m->ndata;
+    const size_t base = key % n;
+
+    for (size_t offset = 0; offset != n; ++offset) {
+        Entry *e = &m->data[(base + offset) % n];
+        if (!e->value) {
+            *e = (Entry) {.key = key, .value = value + 1};
+            return value;
+        }
+        if (e->key == key) {
+            return e->value - 1;
+        }
     }
-    return old_value - 1;
+
+    LS_PANIC("no space left in zu_map");
 }
 
 void
 zu_map_free(Zu_Map *m)
 {
-    munmap(m->ptr, m->length);
+    free(m);
 }

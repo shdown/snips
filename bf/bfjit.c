@@ -108,11 +108,8 @@ fixup4(size_t pos)
 //------------------------------------------------------------------------------
 
 enum {
-    RAX, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
-};
-
-enum {
-    R8, R9, R10, R11, R12, R13, R14, R15
+    RAX = 0, RCX, RDX, RBX, RSP, RBP, RSI, RDI,
+    R8 = 0, R9, R10, R11, R12, R13, R14, R15,
 };
 
 #define i_movq_r_im8(Reg_, X_) \
@@ -120,6 +117,9 @@ enum {
 
 #define i_movq_r_im(Reg_, X_) \
     push(0x48); push(0xC7); push(0xC0 + (Reg_)); push4(X_)
+
+#define i_addq_r_im(Reg_, X_) \
+    push(0x48); push(0x81); push(0xC0 + (Reg_)); push4(X_)
 
 #define i_movq_r_r(Dst_, Src_) \
     push(0x48); push(0x89); push(0xC0 + (Dst_) + 8 * (Src_))
@@ -145,6 +145,9 @@ enum {
 #define i_test_r_r(A_, B_) \
     push(0x48); push(0x85); push(0xC0 + (A_) + 8 * (B_))
 
+#define i_cmp_r_r(A_, B_) \
+    push(0x48); push(0x39); push(0xC0 + (A_) + 8 * (B_))
+
 #define i_negq_r(Reg_) \
     push(0x48); push(0xF7); push(0xD8 + (Reg_))
 
@@ -162,6 +165,9 @@ enum {
 
 #define i_je(Off_) \
     push(0x0F); push(0x84); push4(Off_)
+
+#define i_jne(Off_) \
+    push(0x0F); push(0x85); push4(Off_)
 
 #define i_jmp(Off_) \
     push(0xE9); push4(Off_)
@@ -195,7 +201,7 @@ int main(int argc, char **argv)
 
     bool dump = false;
     unsigned nmem = 1 << 30;
-    for (int c; (c = getopt(argc, argv, "dm:"))  != -1;) {
+    for (int c; (c = getopt(argc, argv, "dzm:"))  != -1;) {
         switch (c) {
         case 'd': dump = true; break;
         case 'm': nmem = strtoul(optarg, NULL, 10); break;
@@ -235,12 +241,37 @@ int main(int argc, char **argv)
     i_js(0);
     fixup_error = size;
 
-    i_movq_r_r(RBX, RAX);
+    i_movq_r_r(RBP, RAX);
+    i_movq_r_r(RBX, RBP);
 
     for (int c; (c = getc(fsrc)) != EOF;) {
         switch (c) {
-        case '>': i_incq_r(RBX); break;
-        case '<': i_decq_r(RBX); break;
+        case '>':
+            {
+                // ++rbx;
+                i_incq_r(RBX);
+                // if (rbx == rbp + nmem) rbx = rbp;
+                i_movq_r_r(RDX, RBP);
+                i_addq_r_im(RDX, nmem);
+                i_cmp_r_r(RBX, RDX);
+                i_jne(0);
+                const size_t p = size;
+                i_movq_r_r(RBX, RBP);
+                fixup4(p);
+            }
+            break;
+        case '<':
+            {
+                // if (rbx == rbp) rbx += nmem;
+                i_cmp_r_r(RBX, RBP);
+                i_jne(0);
+                const size_t p = size;
+                i_addq_r_im(RBX, nmem);
+                fixup4(p);
+                // --rbx;
+                i_decq_r(RBX);
+            }
+            break;
         case '+': i_incb_m(RBX); break;
         case '-': i_decb_m(RBX); break;
         case '[': i_cmpb_m_im(RBX, 0); i_je(0); VECTOR_PUSH(stack, size); break;

@@ -13,13 +13,14 @@
 
 static const char *DIR_PREFIX = "/tmp/motify-send_";
 
-static inline char *
-copy_n_advance(char *dest, const char *src, size_t n)
+static inline
+void
+copy_n_advance(char **dest, const char *src, size_t n)
 {
     if (n) {
-        memcpy(dest, src, n);
+        memcpy(*dest, src, n);
     }
-    return dest + n;
+    *dest += n;
 }
 
 int
@@ -44,13 +45,11 @@ storage_open(const char *appname)
         goto done;
     }
 
-    {
-        char *ptr = filename;
-        ptr = copy_n_advance(ptr, DIR_PREFIX, nprefix);
-        ptr = copy_n_advance(ptr, login, nlogin);
-        *ptr++ = '/';
-        ptr = copy_n_advance(ptr, appname, nappname + 1);
-    }
+    char *ptr = filename;
+    copy_n_advance(&ptr, DIR_PREFIX, nprefix);
+    copy_n_advance(&ptr, login, nlogin);
+    *ptr++ = '/';
+    copy_n_advance(&ptr, appname, nappname + 1);
 
     for (int retry = 0; ; ++retry) {
         do {
@@ -149,15 +148,11 @@ storage_read(int fd)
 bool
 storage_write(int fd, unsigned value)
 {
-    {
-        int r;
-        do {
-            r = ftruncate(fd, 0);
-        } while (r < 0 && errno == EINTR);
-        if (r < 0) {
-            fprintf(stderr, "ftruncate: %s\n", strerror(errno));
-            return false;
-        }
+    int r;
+    while ((r = ftruncate(fd, 0)) < 0 && errno == EINTR) {}
+    if (r < 0) {
+        fprintf(stderr, "ftruncate: %s\n", strerror(errno));
+        return false;
     }
 
     if (lseek(fd, 0, SEEK_SET) == (off_t) -1) {

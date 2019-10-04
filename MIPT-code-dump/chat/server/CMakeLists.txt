@@ -1,0 +1,7 @@
+file (GLOB server_src "*.c" "net/*.c" "proto/*.c" "chat/*.c" "chat/hist/*.c" "chat/users/*.c")
+add_executable (server $<TARGET_OBJECTS:libls> ${server_src})
+target_compile_definitions (server PUBLIC -D_POSIX_C_SOURCE=200809L)
+option (SERVER_USE_TERMIOS "use termios facilities to get password from the command line" ON)
+if (SERVER_USE_TERMIOS)
+    target_compile_definitions (server PUBLIC -DUSE_TERMIOS)
+endif ()

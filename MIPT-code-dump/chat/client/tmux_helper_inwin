@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+trap 'tmux kill-session -t "$CHAT_SESS_NAME"' SIGHUP SIGINT SIGQUIT SIGTERM SIGPIPE EXIT
+
+while IFS= read -ep'> ' line; do
+    printf '%s\n' "$line"
+done > "$CHAT_IN_FIFO"

@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+if (( $# == 0 )); then
+    echo >&2 "USAGE: ${0##*/} <file> [<file> ...]"
+    exit 1
+fi
+
+typeset -A INCLUDED=()
+CONTENT=
+
+dfs() {
+    local line file
+
+    [[ -v INCLUDED[$1] ]] && return
+    INCLUDED[$1]=1
+
+    while IFS= read -r line; do
+        case "$line" in
+            '#include "'*)
+                file=${line#*\"}
+                file=${file%%\"*}
+                if [[ $1 == */* ]]; then
+                    dfs "${1%/*}/$file"
+                else
+                    dfs "$file"
+                fi
+                ;;
+            '#pragma once')
+                ;;
+            *)
+                CONTENT+="$line"$'\n'
+                ;;
+        esac
+    done < "$1"
+    CONTENT+=$'//-------------------- end of file ---------------------\n'
+}
+
+for arg; do
+    dfs "$arg"
+done
+printf %s "$CONTENT"

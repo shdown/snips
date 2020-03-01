@@ -8,7 +8,7 @@ stats_mode_diff=0
 
 usage() {
     cat <<EOF
-USAGE: ${0##*/} [-w WIDTH] [-h HEIGHT] [-f FPS] [-d]
+USAGE: ${0##*/} [-w WIDTH] [-h HEIGHT] [-f FPS] [-d] output input...
 
 -d: pass 'stats_mode=diff' to 'palettegen' filter
 EOF
@@ -25,9 +25,9 @@ while getopts 'w:h:f:d' option; do
     esac
 done
 shift $(( OPTIND - 1 )) || usage
-(( $# != 2 )) && usage
-input=$1
-output=$2
+output=$1
+shift || usage
+input=("$@")
 
 params=
 if [[ $width != -1 || $height != -1 ]]; then
@@ -43,6 +43,6 @@ if (( stats_mode_diff )); then
     palettegen_args="stats_mode=diff"
 fi
 
-ffmpeg -y -i "$input" -vf "${params}palettegen${palettegen_args:+"=$palettegen_args"}" "$palette"
-ffmpeg -y -i "$input" -i "$palette" -filter_complex \
+ffmpeg -y -i "${input[@]}" -vf "${params}palettegen${palettegen_args:+"=$palettegen_args"}" "$palette"
+ffmpeg -y -i "${input[@]}" -i "$palette" -filter_complex \
     "${params%,}[x];[x][1:v]paletteuse=dither=none" "$output"

@@ -1,9 +1,0 @@
-#!/bin/sh
-
-{
-    ./client "$CHAT_HOST" "$CHAT_PORT"
-    echo -n Press ENTER to continue...
-    read -r unused
-} < "$CHAT_IN_FIFO"
-
-tmux kill-session -t "$CHAT_SESS_NAME"

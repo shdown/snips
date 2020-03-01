@@ -1,4 +1,0 @@
-S baabbababaabba
-S -
-S SS
-S aSb

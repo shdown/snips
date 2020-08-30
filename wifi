@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-import dbus
+import os
 import signal
 import subprocess
-import os
+import sys
+import dbus
+
 
 DECORATE_ATTRS = {
     'brackets': '34',
@@ -14,13 +16,19 @@ DECORATE_ATTRS = {
     'error': '1;31',
     'connected_text': '35',
     'connected_mark': '1;35',
-    'type_mark': '31',
+    'type_mark': '34',
     'gauge_bright': '37',
-    'gauge_dim': '31',
+    'gauge_dim': '34',
 }
+
 
 def decorate(style, s):
     return f'\033[{DECORATE_ATTRS[style]}m{s}\033[0m'
+
+
+def clear():
+    sys.stdout.write('\033[H\033[J')
+    sys.stdout.flush()
 
 
 class IwdDevice:
@@ -53,7 +61,9 @@ class IwdConnection:
         for k, v in objs.items():
             dev = v.get('net.connman.iwd.Device')
             if dev is not None:
-                yield IwdDevice(path=str(k), name=str(dev['Name']))
+                yield IwdDevice(
+                    path=str(k),
+                    name=str(dev['Name']))
 
     # returns a bool indicating if this is a new scan
     def scan(self, device):
@@ -123,8 +133,28 @@ def choose(prompt, lines, extra_choices=''):
         return answer
 
 
-def clear():
-    print('\033[H\033[J', end='')
+def network_to_str(network):
+    name = ''.join(filter(lambda s: s.isprintable(), network.name))
+
+    if network.connected:
+        mark = decorate('connected_mark', '(*)')
+        text = decorate('connected_text', name)
+        styled_name = f'{mark} {text}'
+    else:
+        styled_name = name
+
+    if network.type_str == 'open':
+        type_mark = 'open '
+    elif network.type_str == 'psk':
+        type_mark = ' psk '
+    elif network.type_str == '8021x':
+        type_mark = '8021x'
+    else:
+        type_mark = '(???)'
+
+    gauge = make_gauge(network.dbm, size=5)
+
+    return f'{decorate("type_mark", type_mark)} {gauge} {styled_name}'
 
 
 def network_loop(conn, device):
@@ -176,28 +206,6 @@ def make_gauge(dbm, size):
     return (
         decorate('gauge_bright', '•' + '}' * nbright) +
         decorate('gauge_dim', '}' * (size - nbright)))
-
-
-def network_to_str(network):
-    name = ''.join(filter(lambda s: s.isprintable(), network.name))
-
-    if network.connected:
-        r = f'{decorate("connected_mark", "(*)")} {decorate("connected_text", name)}'
-    else:
-        r = name
-
-    if network.type_str == 'open':
-        type_mark = 'open '
-    elif network.type_str == 'psk':
-        type_mark = ' psk '
-    elif network.type_str == '8021x':
-        type_mark = '8021x'
-    else:
-        type_mark = '(???)'
-
-    gauge = make_gauge(network.dbm, size=5)
-
-    return f'{decorate("type_mark", type_mark)} {gauge} {r}'
 
 
 def main():
